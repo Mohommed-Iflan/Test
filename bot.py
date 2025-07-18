@@ -1,38 +1,50 @@
-import logging
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import ContentType
+import os
+import asyncio
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.enums import ParseMode
-from aiogram.utils.markdown import hcode
-from aiogram.utils import executor
+from aiogram.types import Message
+from aiogram.client.default import DefaultBotProperties
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiohttp import ClientSession
 
-from os import getenv
+# ✅ Load token from environment
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN is not set!")
 
-# Replace with your actual token if not using env
-BOT_TOKEN = "7511544228:AAGhOAYlausj1uy1018eTp7yaPJcFLg9c9w"
+# ✅ Initialize bot and dispatcher
+session = AiohttpSession(ClientSession())
+bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session=session)
+dp = Dispatcher(storage=MemoryStorage())
 
-logging.basicConfig(level=logging.INFO)
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+# ✅ Respond to any text message
+@dp.message(F.text)
+async def handle_text(message: Message):
+    await message.reply("📩 Received your message!")
 
-@dp.message_handler(content_types=[ContentType.VIDEO, ContentType.DOCUMENT])
-async def handle_file(message: types.Message):
-    file_id = message.video.file_id if message.video else message.document.file_id
+# ✅ Respond to video or document messages
+@dp.message(F.video | F.document)
+async def handle_file(message: Message):
     try:
-        file_info = await bot.get_file(file_id)
-        file_path = file_info.file_path
-        file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+        file_info = message.video or message.document
+        file_id = file_info.file_id
+        file_size = file_info.file_size
 
-        await message.reply(
-            f"✅ Direct File URL:\n{file_url}",
-            parse_mode=ParseMode.MARKDOWN,
-        )
+        # Telegram max file size for download = 20MB for bots without premium
+        if file_size > 20 * 1024 * 1024:
+            await message.reply("❌ Error: File is too big (Telegram bot limit is 20MB).")
+            return
+
+        await message.reply(f"✅ Received file: <b>{file_info.file_name or 'unnamed file'}</b>\nSize: {round(file_size / 1024 / 1024, 2)} MB")
+
     except Exception as e:
-        await message.reply(f"❌ Error: {e}")
+        await message.reply(f"❌ Failed to process file: {e}")
 
-@dp.message_handler()
-async def handle_text(message: types.Message):
-    await message.reply("📩 Send me a video or document to get the direct file link.")
+# ✅ Startup
+async def main():
+    print("✅ Bot is starting...")
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    from aiogram import executor
-    executor.start_polling(dp, skip_updates=True)
+    asyncio.run(main())
