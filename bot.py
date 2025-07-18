@@ -3,10 +3,9 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
-from aiogram.types import FSInputFile
 from aiogram.client.session.aiohttp import AiohttpSession
 
-BOT_TOKEN = "YOUR_BOT_TOKEN"
+BOT_TOKEN = "YOUR_BOT_TOKEN"  # replace with actual token
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -22,34 +21,31 @@ bot = Bot(
 dp = Dispatcher()
 
 @dp.message()
-async def handle_message(message: types.Message):
-    # Check if message is a forwarded video
-    if message.video or message.forward_from or message.forward_from_chat:
-        video = message.video
+async def handle_forwarded_video(message: types.Message):
+    # Check if message has a video
+    video = message.video
+    if not video:
+        await message.reply("❌ Please forward a video message (not text or photo).")
+        return
 
-        if not video:
-            await message.reply("❌ No video found in the forwarded message.")
-            return
+    file_id = video.file_id
 
-        file_id = video.file_id
+    try:
+        file = await bot.get_file(file_id)
+        file_path = file.file_path
+        # Optional: hide token in output if needed
+        safe_token = "BOT_TOKEN"
+        download_link = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
 
-        # Get file path
-        try:
-            file = await bot.get_file(file_id)
-            file_path = file.file_path
-            download_link = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+        await message.reply(
+            f"🎬 <b>File ID:</b>\n<code>{file_id}</code>\n\n"
+            f"📥 <b>Download Link:</b>\n<code>{download_link}</code>",
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        await message.reply(f"❌ Error:\n<code>{str(e)}</code>", parse_mode=ParseMode.HTML)
 
-            response_text = (
-                f"🎬 <b>Video file_id</b>:\n<code>{file_id}</code>\n\n"
-                f"📥 <b>Download link</b>:\n<code>{download_link}</code>"
-            )
-            await message.reply(response_text)
-        except Exception as e:
-            await message.reply(f"❌ Failed to get file path:\n<code>{e}</code>")
-    else:
-        await message.reply("❌ Please forward a video to get the file ID and path.")
-
-# Main
+# Main entry
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
