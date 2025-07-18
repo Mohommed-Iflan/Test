@@ -4,6 +4,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.default import DefaultBotProperties
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
@@ -11,12 +12,16 @@ if not BOT_TOKEN:
 
 async def main():
     session = AiohttpSession()
-    bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML, session=session)
+    bot = Bot(
+        token=BOT_TOKEN,
+        session=session,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
     dp = Dispatcher(storage=MemoryStorage())
 
     @dp.message()
     async def handle_message(message: types.Message):
-        await message.reply("Hello! Send me a video or document.")
+        await message.reply("✅ Bot is working!")
 
     await dp.start_polling(bot)
 
